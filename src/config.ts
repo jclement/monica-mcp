@@ -43,6 +43,15 @@ export interface Config {
   /** Pre-filled into the "connect Monica" form (the hosted instance by default). */
   monicaDefaultBaseUrl: string;
 
+  /**
+   * Allow connecting to a Monica instance over plaintext http:// for any host,
+   * not just localhost. Off by default — the API token rides in the
+   * Authorization header, so http exposes it to anyone on the wire. Only enable
+   * when the instance is reachable solely over a trusted network (LAN, VPN,
+   * Tailscale, a private Docker network).
+   */
+  monicaAllowInsecureHttp: boolean;
+
   /** Wipe all passkeys + sessions on boot (recovery from a lost authenticator). */
   authReset: boolean;
 }
@@ -111,6 +120,7 @@ export function loadConfig(env = process.env): Config {
     masterKey,
     masterKeyEphemeral: ephemeral,
     monicaDefaultBaseUrl: env.MONICA_DEFAULT_BASE_URL?.trim() || "https://app.monicahq.com",
+    monicaAllowInsecureHttp: bool("MONICA_ALLOW_INSECURE_HTTP", false),
     authReset: bool("AUTH_RESET", false),
   };
 }

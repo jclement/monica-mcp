@@ -36,9 +36,10 @@ export class AccountError extends Error {
 /**
  * Normalize a user-entered Monica base URL into an origin we can append `/api` to.
  * Accepts an instance root (`https://app.monicahq.com`) or one with a `/api` suffix
- * and strips it. Requires https except on localhost (matches the WebAuthn rule).
+ * and strips it. Requires https except on localhost (matches the WebAuthn rule);
+ * `allowInsecureHttp` (MONICA_ALLOW_INSECURE_HTTP) lifts that to any host.
  */
-export function normalizeBaseUrl(raw: string): string {
+export function normalizeBaseUrl(raw: string, allowInsecureHttp = false): string {
   const trimmed = raw.trim();
   if (!trimmed) throw new AccountError("INVALID_URL", "Monica base URL is required.");
   let url: URL;
@@ -48,8 +49,9 @@ export function normalizeBaseUrl(raw: string): string {
     throw new AccountError("INVALID_URL", "Monica base URL must be a valid URL, e.g. https://app.monicahq.com.");
   }
   const isLocalhost = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalhost)) {
-    throw new AccountError("INVALID_URL", "Monica base URL must be https:// (http allowed only on localhost).");
+  const httpOk = url.protocol === "http:" && (isLocalhost || allowInsecureHttp);
+  if (url.protocol !== "https:" && !httpOk) {
+    throw new AccountError("INVALID_URL", "Monica base URL must be https:// (http allowed only on localhost, or set MONICA_ALLOW_INSECURE_HTTP=1).");
   }
   // Drop a trailing `/api` (the client adds it) and any trailing slash, keeping any
   // sub-path so self-hosted installs under a prefix still work.
@@ -71,8 +73,14 @@ export function getAccount(db: Database, userId: number): AccountRow | null {
 }
 
 /** Create or replace this user's single Monica account. Returns the public row. */
-export function upsertAccount(db: Database, key: Buffer, userId: number, input: NewAccount): AccountRow {
-  const baseUrl = normalizeBaseUrl(input.baseUrl);
+export function upsertAccount(
+  db: Database,
+  key: Buffer,
+  userId: number,
+  input: NewAccount,
+  allowInsecureHttp = false,
+): AccountRow {
+  const baseUrl = normalizeBaseUrl(input.baseUrl, allowInsecureHttp);
   const token = input.token.trim();
   if (!token) throw new AccountError("INVALID_TOKEN", "API token is required.");
   const tokenType = (input.tokenType?.trim() || "bearer") as TokenType;

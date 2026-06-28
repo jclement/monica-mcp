@@ -85,4 +85,10 @@ describe("base url normalization", () => {
     expect(() => normalizeBaseUrl("not a url")).toThrow(AccountError);
     expect(normalizeBaseUrl("http://localhost:8080")).toBe("http://localhost:8080");
   });
+
+  test("allowInsecureHttp permits http on any host", () => {
+    expect(normalizeBaseUrl("http://monica.lan/api", true)).toBe("http://monica.lan");
+    // still rejects garbage, and the malformed-url path is unaffected
+    expect(() => normalizeBaseUrl("not a url", true)).toThrow(AccountError);
+  });
 });

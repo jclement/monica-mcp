@@ -146,7 +146,7 @@ export function monicaRouter(db: Database, runtime: AppRuntime, config: Config):
         baseUrl: String(body.baseUrl ?? ""),
         token: String(body.token ?? ""),
         tokenType: String(body.tokenType ?? "") || undefined,
-      });
+      }, config.monicaAllowInsecureHttp);
       recordAdmin(db, userId, "monica.connect", { target: account.base_url });
       return c.html(<MonicaCardBody account={account} defaultBaseUrl={defaultBaseUrl} />);
     } catch (err) {
