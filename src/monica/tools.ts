@@ -25,6 +25,13 @@ interface ResourceDef {
   search?: boolean;
   /** Resource also lives under `/contacts/{id}/<path>`; list accepts an optional contact_id. */
   contactScoped?: boolean;
+  /**
+   * Human-readable summary of the create/update `data` payload (required + optional
+   * fields, allowed values, date formats). Surfaced in the create/update tool
+   * descriptions and the `data` schema so the agent doesn't have to guess. Monica's
+   * REST shapes drift, so keep these in sync with https://www.monicahq.com/api.
+   */
+  fields?: string;
 }
 
 const PAGINATION = {
@@ -70,12 +77,21 @@ function crudTools(def: ResourceDef): MonicaTool[] {
   }
 
   if (def.ops.includes("create")) {
+    const createDesc = def.fields
+      ? `Create a ${label}. Build the \`data\` object from these Monica fields — ${def.fields}`
+      : `Create a ${label}. Pass the Monica field set in \`data\` (see ${path} in the Monica API docs for required fields).`;
     tools.push({
       name: `create_${def.singular}`,
-      description: `Create a ${label}. Pass the Monica field set in \`data\` (see ${path} in the Monica API docs for required fields).`,
+      description: createDesc,
       inputSchema: {
         type: "object",
-        properties: { data: { type: "object", description: `Fields for the new ${label}.`, additionalProperties: true } },
+        properties: {
+          data: {
+            type: "object",
+            description: def.fields ? `Fields for the new ${label} — ${def.fields}` : `Fields for the new ${label}.`,
+            additionalProperties: true,
+          },
+        },
         required: ["data"],
       },
       handler: (client, args) => client.request("POST", path, { body: args.data }),
@@ -83,14 +99,21 @@ function crudTools(def: ResourceDef): MonicaTool[] {
   }
 
   if (def.ops.includes("update")) {
+    const updateDesc = def.fields
+      ? `Update a ${label}. Monica PUT replaces the record, so include the full field set in \`data\` (not just changed fields) — ${def.fields}`
+      : `Update a ${label}. Monica PUT replaces the record, so include all required fields in \`data\`.`;
     tools.push({
       name: `update_${def.singular}`,
-      description: `Update a ${label}. Monica PUT replaces the record, so include all required fields in \`data\`.`,
+      description: updateDesc,
       inputSchema: {
         type: "object",
         properties: {
           id: { type: "integer", description: `The ${label} id.` },
-          data: { type: "object", description: `Full field set for the ${label}.`, additionalProperties: true },
+          data: {
+            type: "object",
+            description: def.fields ? `Full field set for the ${label} — ${def.fields}` : `Full field set for the ${label}.`,
+            additionalProperties: true,
+          },
         },
         required: ["id", "data"],
       },
@@ -113,23 +136,121 @@ function crudTools(def: ResourceDef): MonicaTool[] {
 const CRUD: Op[] = ["list", "get", "create", "update", "delete"];
 
 const RESOURCES: ResourceDef[] = [
-  { plural: "contacts", singular: "contact", ops: CRUD, search: true },
-  { plural: "notes", singular: "note", ops: CRUD, contactScoped: true },
-  { plural: "activities", singular: "activity", ops: CRUD, contactScoped: true },
-  { plural: "calls", singular: "call", ops: CRUD, contactScoped: true },
-  { plural: "conversations", singular: "conversation", ops: CRUD, contactScoped: true },
-  { plural: "reminders", singular: "reminder", ops: CRUD, contactScoped: true },
-  { plural: "tasks", singular: "task", ops: CRUD, contactScoped: true },
-  { plural: "tags", singular: "tag", ops: CRUD },
-  { plural: "journal", singular: "journal_entry", label: "journal entry", ops: CRUD },
-  { plural: "gifts", singular: "gift", ops: CRUD, contactScoped: true },
-  { plural: "debts", singular: "debt", ops: CRUD, contactScoped: true },
-  { plural: "relationships", singular: "relationship", ops: ["get", "create", "update", "delete"] },
-  { plural: "companies", singular: "company", ops: CRUD },
-  { plural: "groups", singular: "group", ops: CRUD },
-  { plural: "addresses", singular: "address", ops: CRUD, contactScoped: true },
-  { plural: "contactfields", singular: "contact_field", label: "contact field", ops: CRUD, contactScoped: true },
-  { plural: "occupations", singular: "occupation", ops: CRUD },
+  {
+    plural: "contacts",
+    singular: "contact",
+    ops: CRUD,
+    search: true,
+    fields:
+      'required: first_name (string), gender_id (integer — call list_genders for valid ids), is_birthdate_known (bool), is_deceased (bool), is_deceased_date_known (bool). optional: last_name, nickname, and when is_birthdate_known=true: birthdate_day/birthdate_month/birthdate_year (or birthdate_is_age_based=true + birthdate_age). Minimal example: {"first_name":"Jane","last_name":"Doe","gender_id":1,"is_birthdate_known":false,"is_deceased":false,"is_deceased_date_known":false}.',
+  },
+  {
+    plural: "notes",
+    singular: "note",
+    ops: CRUD,
+    contactScoped: true,
+    fields: "required: body (string), contact_id (integer), is_favorited (0 or 1).",
+  },
+  {
+    plural: "activities",
+    singular: "activity",
+    ops: CRUD,
+    contactScoped: true,
+    fields:
+      "required: activity_type_id (integer — call list_activitytypes), summary (string), happened_at (YYYY-MM-DD), contacts (array of contact ids, at least one). optional: description (string), emotions (array of emotion ids).",
+  },
+  {
+    plural: "calls",
+    singular: "call",
+    ops: CRUD,
+    contactScoped: true,
+    fields: "required: content (string), contact_id (integer), called_at (YYYY-MM-DD).",
+  },
+  {
+    plural: "conversations",
+    singular: "conversation",
+    ops: CRUD,
+    contactScoped: true,
+    fields:
+      "required: happened_at (YYYY-MM-DD), contact_field_type_id (integer — the medium, call list_contactfieldtypes), contact_id (integer). Add messages afterward with add_conversation_message.",
+  },
+  {
+    plural: "reminders",
+    singular: "reminder",
+    ops: CRUD,
+    contactScoped: true,
+    fields:
+      'required: title (string), next_expected_date (YYYY-MM-DD, in the future), frequency_type (one of "one_time", "week", "month", "year"), contact_id (integer). optional: description (string), frequency_number (integer — how many of the unit between recurrences; for one_time pass 1 or omit).',
+  },
+  {
+    plural: "tasks",
+    singular: "task",
+    ops: CRUD,
+    contactScoped: true,
+    fields: "required: title (string), completed (0 or 1), contact_id (integer). optional: description (string), completed_at (YYYY-MM-DD).",
+  },
+  { plural: "tags", singular: "tag", ops: CRUD, fields: "required: name (string)." },
+  {
+    plural: "journal",
+    singular: "journal_entry",
+    label: "journal entry",
+    ops: CRUD,
+    fields: "required: title (string), post (string, the entry body).",
+  },
+  {
+    plural: "gifts",
+    singular: "gift",
+    ops: CRUD,
+    contactScoped: true,
+    fields:
+      'required: contact_id (integer), name (string), status (one of "idea", "offered", "received"). optional: recipient_id (integer), comment (string), url (string), amount (number), date (YYYY-MM-DD).',
+  },
+  {
+    plural: "debts",
+    singular: "debt",
+    ops: CRUD,
+    contactScoped: true,
+    fields:
+      'required: contact_id (integer), in_debt ("yes" if the user owes the contact, "no" if the contact owes the user), status (one of "inprogress", "complete"), amount (integer). optional: reason (string).',
+  },
+  {
+    plural: "relationships",
+    singular: "relationship",
+    ops: ["get", "create", "update", "delete"],
+    fields:
+      "required: contact_is (integer — the contact the relationship is linked to), relationship_type_id (integer — call list_relationshiptypes), of_contact (integer — the other contact).",
+  },
+  {
+    plural: "companies",
+    singular: "company",
+    ops: CRUD,
+    fields: "required: name (string). optional: website (string), number_of_employees (integer).",
+  },
+  { plural: "groups", singular: "group", ops: CRUD, fields: "required: name (string)." },
+  {
+    plural: "addresses",
+    singular: "address",
+    ops: CRUD,
+    contactScoped: true,
+    fields:
+      "required: name (string — a short label like \"Home\"), contact_id (integer). optional: street, city, province, postal_code (strings), country (country id from list_countries).",
+  },
+  {
+    plural: "contactfields",
+    singular: "contact_field",
+    label: "contact field",
+    ops: CRUD,
+    contactScoped: true,
+    fields:
+      "required: data (string — the value, e.g. an email address or phone number), contact_field_type_id (integer — call list_contactfieldtypes), contact_id (integer).",
+  },
+  {
+    plural: "occupations",
+    singular: "occupation",
+    ops: CRUD,
+    fields:
+      "required: contact_id (integer), company_id (integer — call list_companies or create one), title (string). optional: description, salary (integer), salary_unit (string), currently_works_here (bool), start_date (YYYY-MM-DD), end_date (YYYY-MM-DD).",
+  },
   { plural: "documents", singular: "document", ops: ["list", "get", "delete"], contactScoped: true },
   { plural: "photos", singular: "photo", ops: ["list", "get", "delete"], contactScoped: true },
   // read-only reference data
@@ -200,7 +321,12 @@ const SPECIAL_TOOLS: MonicaTool[] = [
       type: "object",
       properties: {
         conversation_id: { type: "integer", description: "The conversation id." },
-        data: { type: "object", description: "Message fields (contact_id, written_at, written_by_me, content).", additionalProperties: true },
+        data: {
+          type: "object",
+          description:
+            "Message fields, all required — content (string, the message text), written_at (YYYY-MM-DD), written_by_me (bool: true if the user wrote it, false if the contact did), contact_id (integer).",
+          additionalProperties: true,
+        },
       },
       required: ["conversation_id", "data"],
     },
