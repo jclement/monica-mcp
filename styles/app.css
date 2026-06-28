@@ -2,9 +2,9 @@
 @source "../src/web/**/*.tsx";
 
 @theme {
-  --color-accent: #0078d4; /* Azure blue */
-  --color-accent-hover: #2b88d8;
-  --color-accent-muted: #1b3a57;
+  --color-accent: #6366f1; /* indigo */
+  --color-accent-hover: #818cf8;
+  --color-accent-muted: #2e2b59;
   --color-base-950: #161616;
   --color-base-900: #1e1e1e;
   --color-base-800: #262626;
