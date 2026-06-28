@@ -1,0 +1,41 @@
+# Monica MCP exposed through a self-hosted Gatecrash tunnel
+# (https://github.com/jclement/gatecrash).
+#
+# 1. Copy this file to docker-compose.yml and create a .env next to it:
+#      MASTER_KEY=...                 # openssl rand -base64 32 — and BACK IT UP
+#      GATECRASH_SERVER=tunnel.example.com:51234
+#      GATECRASH_HOST_KEY=SHA256:...
+#      GATECRASH_TOKEN=monica-mcp:SECRET
+# 2. docker compose up -d
+# 3. Open https://<your-host>/register to create your account, then connect your
+#    Monica account (instance URL + API token).
+#
+# Registration is OPEN — keep the tunnel hostname behind your own access control.
+# PUBLIC_URL is optional: the app derives its public origin from the tunnel's
+# forwarded headers; set it to hard-pin the host.
+
+services:
+  app:
+    image: ghcr.io/jclement/monica-mcp:latest
+    # To build from a local checkout instead of pulling the published image,
+    # uncomment this and run `docker compose up --build`:
+    # build: { context: .., dockerfile: Dockerfile }
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      # Encrypts every stored Monica API token at rest. Required. Losing it = all tokens unrecoverable.
+      MASTER_KEY: "${MASTER_KEY:?set MASTER_KEY in .env (openssl rand -base64 32)}"
+      # PUBLIC_URL: https://monica-mcp.example.com   # optional override
+    volumes:
+      - ./data:/data
+
+  tunnel:
+    image: ghcr.io/jclement/gatecrash:latest
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      GATECRASH_SERVER: ${GATECRASH_SERVER}
+      GATECRASH_HOST_KEY: ${GATECRASH_HOST_KEY}
+      GATECRASH_TOKEN: ${GATECRASH_TOKEN}
+      GATECRASH_TARGET: app:3000

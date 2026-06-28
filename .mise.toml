@@ -1,0 +1,37 @@
+[tools]
+# Exact-pinned for reproducible dev/build. Monica is reached over HTTP, so the
+# runtime needs only Bun — no Node / child processes.
+bun = "1.3.14"
+
+[env]
+DATA_DIR = "{{config_root}}/data"
+# Local dev only: opt in to the built-in insecure master key so tokens persist
+# without setting MASTER_KEY. NEVER set this in a real deployment — without it,
+# a server missing MASTER_KEY hard-fails instead of using a public key.
+ALLOW_DEV_MASTER_KEY = "1"
+# PUBLIC_URL intentionally unset: dev runs in proxy-derived mode, matching
+# production. Set it only to hard-pin the public origin.
+
+[tasks."dev:server"]
+run = "bun --watch src/server.ts"
+
+[tasks."dev:css"]
+run = "bunx @tailwindcss/cli -i styles/app.css -o public/app.css --watch"
+
+[tasks.dev]
+depends = ["dev:server", "dev:css"]
+
+[tasks.test]
+run = "bun test"
+
+[tasks.typecheck]
+run = "bunx tsc --noEmit"
+
+[tasks.build]
+run = [
+  "bunx @tailwindcss/cli -i styles/app.css -o public/app.css --minify",
+  "bun build src/server.ts --target=bun --outdir=dist",
+]
+
+[tasks."docker:build"]
+run = "docker build -t monica-mcp:dev ."

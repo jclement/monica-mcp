@@ -1,0 +1,32 @@
+# Single-container deployment of the Monica MCP gateway.
+#
+# Put this behind a TLS-terminating reverse proxy / tunnel that sets
+# X-Forwarded-Proto and X-Forwarded-Host (passkeys require a secure origin).
+# Registration is OPEN — anyone who can reach the URL can create an account, so
+# the network boundary (VPN / private ingress / Cloudflare Access) is the real
+# perimeter. Restrict who can reach this service.
+services:
+  app:
+    # Published by CI to GHCR. To build locally instead, run with --build.
+    image: ghcr.io/jclement/monica-mcp:latest
+    build:
+      context: ..
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # 32-byte key that encrypts every stored Monica API token. REQUIRED in
+      # production. Generate: openssl rand -base64 32 — and BACK IT UP. Losing it
+      # makes all stored tokens unrecoverable.
+      MASTER_KEY: "${MASTER_KEY:?set MASTER_KEY in .env (openssl rand -base64 32)}"
+      # Optionally hard-pin the public origin instead of deriving from proxy headers:
+      # PUBLIC_URL: "https://monica-mcp.example.com"
+      #
+      # Pre-fills the "connect Monica" form. Defaults to the hosted instance;
+      # set it to your self-hosted Monica URL if you run your own.
+      # MONICA_DEFAULT_BASE_URL: "https://app.monicahq.com"
+    volumes:
+      - monica-mcp-data:/data
+
+volumes:
+  monica-mcp-data:
